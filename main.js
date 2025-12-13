@@ -1,6 +1,5 @@
 const express = require('express');
 const fs = require('fs');
-const { execFile } = require("child_process");
 
 const app = express();
 app.use(express.json());
@@ -9,7 +8,6 @@ const ADMIN_CREDENTIALS = { username: "OZOD", password: "12082010" };
 
 // ===== PATHLAR =====
 const DATA_FILE = "data.json";
-const CALC_EXE  = "calc.exe";
 
 // ===== YORDAMCHI =====
 function readAccounts() {
@@ -106,19 +104,21 @@ app.post('/login', (req, res) => {
     res.json({ status: "ok", user: u });
 });
 
-// TRANSACTION
+// TRANSACTION (demo uchun)
 app.post('/transaction', (req, res) => {
     const acc = readAccounts();
     const u = acc.find(a => a.username === req.body.username);
     if (!u) return res.json({ status: "error" });
 
-    const act = req.body.action === "deposit" ? 1 : 2;
+    const amountChange = Number(req.body.amount);
+    if (req.body.action === "deposit") {
+        u.amount += amountChange;
+    } else if (req.body.action === "withdraw") {
+        u.amount -= amountChange;
+    }
 
-    execFile(CALC_EXE, [u.amount, req.body.amount, act], (e, out) => {
-        u.amount = Number(out);
-        writeAccounts(acc);
-        res.json({ status: "ok", user: u });
-    });
+    writeAccounts(acc);
+    res.json({ status: "ok", user: u });
 });
 
 // DELETE USER
@@ -132,6 +132,8 @@ app.delete('/user', (req, res) => {
     res.json({ status: "ok", message: "Hisob o‘chirildi" });
 });
 
-app.listen(3000, () =>
-    console.log("✅ Server running http://localhost:3000")
+// ===== RENDER PORT =====
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+    console.log(`✅ Server running on port ${PORT}`)
 );
