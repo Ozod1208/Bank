@@ -4,14 +4,21 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
-const ADMIN_CREDENTIALS = { username: "OZOD", password: "12082010" };
+/* ================= CONFIG ================= */
 
-// ===== PATHLAR =====
+const ADMIN_CREDENTIALS = {
+    username: "OZOD",
+    password: "12082010"
+};
+
 const DATA_FILE = "data.json";
 
-// ===== YORDAMCHI =====
+/* ================= HELPERS ================= */
+
 function readAccounts() {
-    if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "[]");
+    if (!fs.existsSync(DATA_FILE)) {
+        fs.writeFileSync(DATA_FILE, "[]");
+    }
     return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
 }
 
@@ -29,52 +36,66 @@ function isAdmin(user, pass) {
 // ADMIN LOGIN
 app.post('/admin/login', (req, res) => {
     const { username, password } = req.body;
-    if (isAdmin(username, password))
+    if (isAdmin(username, password)) {
         return res.json({ status: "ok" });
+    }
     res.json({ status: "error" });
 });
 
-// ADMIN DATA
+// ADMIN GET ALL DATA
 app.get('/admin/data', (req, res) => {
     const { adminuser, adminpass } = req.headers;
-    if (!isAdmin(adminuser, adminpass))
+
+    if (!isAdmin(adminuser, adminpass)) {
         return res.json({ status: "error", message: "Admin emas" });
+    }
 
     res.json({ status: "ok", data: readAccounts() });
 });
 
-// ADMIN CHANGE PASSWORD
+// ADMIN CHANGE USER PASSWORD
 app.post('/admin/change-password', (req, res) => {
     const { adminUser, adminPass, username, newPassword } = req.body;
-    if (!isAdmin(adminUser, adminPass))
+
+    if (!isAdmin(adminUser, adminPass)) {
         return res.json({ status: "error" });
+    }
 
     const acc = readAccounts();
-    const u = acc.find(a => a.username === username);
-    if (!u) return res.json({ status: "error", message: "Topilmadi" });
+    const user = acc.find(u => u.username === username);
 
-    u.password = newPassword;
+    if (!user) {
+        return res.json({ status: "error", message: "User topilmadi" });
+    }
+
+    user.password = newPassword;
     writeAccounts(acc);
+
     res.json({ status: "ok", message: "Parol o‘zgartirildi" });
 });
 
 // ADMIN DELETE USER
 app.delete('/admin/user/:username', (req, res) => {
     const { adminuser, adminpass } = req.headers;
-    if (!isAdmin(adminuser, adminpass))
+
+    if (!isAdmin(adminuser, adminpass)) {
         return res.json({ status: "error" });
+    }
 
     let acc = readAccounts();
-    acc = acc.filter(a => a.username !== req.params.username);
+    acc = acc.filter(u => u.username !== req.params.username);
     writeAccounts(acc);
+
     res.json({ status: "ok", message: "User o‘chirildi" });
 });
 
-// ADMIN UPDATE DATA.JSON
+// ADMIN UPDATE FULL DATA
 app.post('/admin/update-data', (req, res) => {
     const { adminUser, adminPass, newData } = req.body;
-    if (!isAdmin(adminUser, adminPass))
+
+    if (!isAdmin(adminUser, adminPass)) {
         return res.json({ status: "error" });
+    }
 
     writeAccounts(newData);
     res.json({ status: "ok", message: "Data yangilandi" });
@@ -85,10 +106,17 @@ app.post('/admin/update-data', (req, res) => {
 // SIGNUP
 app.post('/signup', (req, res) => {
     const acc = readAccounts();
-    if (acc.find(a => a.username === req.body.username))
-        return res.json({ status: "error" });
 
-    acc.push({ ...req.body, amount: 10000 });
+    if (acc.find(u => u.username === req.body.username)) {
+        return res.json({ status: "error", message: "Username band" });
+    }
+
+    acc.push({
+        username: req.body.username,
+        password: req.body.password,
+        amount: 10000
+    });
+
     writeAccounts(acc);
     res.json({ status: "ok" });
 });
@@ -96,44 +124,70 @@ app.post('/signup', (req, res) => {
 // LOGIN
 app.post('/login', (req, res) => {
     const acc = readAccounts();
-    const u = acc.find(a =>
-        a.username === req.body.username &&
-        a.password === req.body.password
+
+    const user = acc.find(u =>
+        u.username === req.body.username &&
+        u.password === req.body.password
     );
-    if (!u) return res.json({ status: "error" });
-    res.json({ status: "ok", user: u });
+
+    if (!user) {
+        return res.json({ status: "error" });
+    }
+
+    res.json({ status: "ok", user });
 });
 
-// TRANSACTION (demo uchun)
+// TRANSACTION (DEPOSIT / WITHDRAW)
 app.post('/transaction', (req, res) => {
     const acc = readAccounts();
-    const u = acc.find(a => a.username === req.body.username);
-    if (!u) return res.json({ status: "error" });
+    const user = acc.find(u => u.username === req.body.username);
 
-    const amountChange = Number(req.body.amount);
-    if (req.body.action === "deposit") {
-        u.amount += amountChange;
-    } else if (req.body.action === "withdraw") {
-        u.amount -= amountChange;
+    if (!user) {
+        return res.json({ status: "error", message: "User topilmadi" });
+    }
+
+    const amount = Number(req.body.amount);
+    const action = req.body.action;
+
+    if (isNaN(amount) || amount <= 0) {
+        return res.json({ status: "error", message: "Noto‘g‘ri summa" });
+    }
+
+    if (!["deposit", "withdraw"].includes(action)) {
+        return res.json({ status: "error", message: "Noto‘g‘ri amal" });
+    }
+
+    if (action === "withdraw" && user.amount < amount) {
+        return res.json({ status: "error", message: "Balans yetarli emas" });
+    }
+
+    if (action === "deposit") {
+        user.amount += amount;
+    } else {
+        user.amount -= amount;
     }
 
     writeAccounts(acc);
-    res.json({ status: "ok", user: u });
+    res.json({ status: "ok", user });
 });
 
-// DELETE USER
+// DELETE USER (self)
 app.delete('/user', (req, res) => {
     let acc = readAccounts();
-    acc = acc.filter(a =>
-        !(a.username === req.body.username &&
-          a.password === req.body.password)
+
+    acc = acc.filter(u =>
+        !(u.username === req.body.username &&
+          u.password === req.body.password)
     );
+
     writeAccounts(acc);
     res.json({ status: "ok", message: "Hisob o‘chirildi" });
 });
 
-// ===== RENDER PORT =====
+/* ================= START SERVER ================= */
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-    console.log(`✅ Server running on port ${PORT}`)
-);
+app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+});
+
