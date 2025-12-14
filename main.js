@@ -1,7 +1,13 @@
 const express = require('express');
 const fs = require('fs');
+const cors = require("cors");
 
 const app = express();
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "DELETE"],
+    allowedHeaders: ["Content-Type"]
+}));
 app.use(express.json());
 
 /* ================= CONFIG ================= */
@@ -190,5 +196,6 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
 });
+
 
 
